@@ -1,28 +1,22 @@
 #include <Arduino.h>
 
 // --- Configurations ---
-const int r = 2;           // Tire radius `(cm)`
-const int boardWidth = 10; // Physical board width `(cm)` / distance of two tires
-const int topSpeed = 4;    // Speed of the motors at full power `(cm/s)`
+constexpr uint8_t tireRadius = 2;  // Tire radius `(cm)`
+constexpr uint8_t boardWidth = 10; // Physical board width `(cm)` / distance of two tires
+constexpr uint8_t topSpeed = 4;    // Speed of the motors at full power `(cm/s)`
 
 // --- Sensor Pins ---
-const int SensorPin[] = {A0, A1, A2, A3, A4, A5}; // Sensors in left to right order
+constexpr uint8_t SensorPin[] = {A0, A1, A2, A3, A4, A5}; // Sensors in left to right order
 
 // --- Motor A Pins ---
-const int ENA = 5; // PWM pin for speed
-const int IN1 = 7; // Direction pin 1
-const int IN2 = 6; // Direction pin 2
+constexpr uint8_t ENA = 5; // PWM pin for speed
+constexpr uint8_t IN1 = 7; // Direction pin 1
+constexpr uint8_t IN2 = 6; // Direction pin 2
 
 // --- Motor B Pins ---
-const int ENB = 9; // PWM pin for speed
-const int IN3 = 4; // Direction pin 3
-const int IN4 = 3; // Direction pin 4
-
-// --- Other var to save time and memory ---
-int rightSpeed;            // Right tire speed `(cm/s)`
-int leftSpeed;             // Left tire speed `(cm/s)`
-unsigned long startTime;   // general variable to save local start time of a timer
-unsigned long currentTime; // general variable to save local current time of a timer
+constexpr uint8_t ENB = 9; // PWM pin for speed
+constexpr uint8_t IN3 = 4; // Direction pin 3
+constexpr uint8_t IN4 = 3; // Direction pin 4
 
 void setup()
 {
@@ -34,8 +28,8 @@ void setup()
     pinMode(IN3, OUTPUT);
     pinMode(IN4, OUTPUT);
 
-    for (int i = 0; i < 6; i++)
-        pinMode(SensorPin[i], INPUT);
+    for (uint8_t pin : SensorPin)
+        pinMode(pin, INPUT);
 }
 
 void loop()
@@ -47,41 +41,37 @@ void loop()
 
 // --- Helper Functions ---
 
-void moveForward(int speed)
+inline void setMotorDirection(bool leftForward, bool rightForward)
 {
-    // Set speeds (0 to 255)
-    analogWrite(ENA, speed);
-    analogWrite(ENB, speed);
+    digitalWrite(IN1, leftForward);
+    digitalWrite(IN2, !leftForward);
 
-    // Motor A Forward
-    digitalWrite(IN1, HIGH);
-    digitalWrite(IN2, LOW);
-
-    // Motor B Forward
-    digitalWrite(IN3, HIGH);
-    digitalWrite(IN4, LOW);
+    digitalWrite(IN3, rightForward);
+    digitalWrite(IN4, !rightForward);
 }
 
-void moveBackward(int speed)
+inline void setMotorSpeed(uint8_t leftMotorSpeed, uint8_t rightMotorSpeed)
 {
-    // Set speeds (0 to 255)
-    analogWrite(ENA, speed);
-    analogWrite(ENB, speed);
-
-    // Motor A Backward
-    digitalWrite(IN1, LOW);
-    digitalWrite(IN2, HIGH);
-
-    // Motor B Backward
-    digitalWrite(IN3, LOW);
-    digitalWrite(IN4, HIGH);
+    analogWrite(ENA, leftMotorSpeed);
+    analogWrite(ENB, rightMotorSpeed);
 }
 
-void stopMotors()
+inline void moveForward(uint8_t speed)
+{
+    setMotorSpeed(speed, speed);
+    setMotorDirection(true, true);
+}
+
+inline void moveBackward(uint8_t speed)
+{
+    setMotorSpeed(speed, speed);
+    setMotorDirection(false, false);
+}
+
+inline void stopMotors()
 {
     // Turn off enable pins to cut power/coast to a stop
-    analogWrite(ENA, 0);
-    analogWrite(ENB, 0);
+    setMotorSpeed(0, 0);
 
     digitalWrite(IN1, LOW);
     digitalWrite(IN2, LOW);
@@ -89,54 +79,17 @@ void stopMotors()
     digitalWrite(IN4, LOW);
 }
 
-void turnLeft(int degree, int innerRadius, int outterSpeed)
+// `turnLeft`: `true` if turning left, `false` otherwise
+// `innerRadius`: the radius of the circle created by taking the path of the inner tire as tangent to the direction of the turn
+// `outerSpeed`: speed of the outer tire with respect to the turning direction
+void turn(bool left, uint16_t innerRadius, uint8_t outerSpeed)
 {
-    // startTime = currentTime = millis();
+    uint8_t innerSpeed = (innerRadius * outerSpeed) / (innerRadius + boardWidth);
 
-    rightSpeed = outterSpeed;
-    leftSpeed = (innerRadius * outterSpeed) / (innerRadius + boardWidth);
+    if (left)
+        setMotorSpeed(innerSpeed, outerSpeed);
+    else
+        setMotorSpeed(outerSpeed, innerSpeed);
 
-    // int fixedTime = (TWO_PI * innerRadius * degree * 1000) / (rightSpeed * 360);
-
-    // while (millis() - startTime < fixedTime)
-    // {
-    analogWrite(ENA, leftSpeed);
-    analogWrite(ENB, rightSpeed);
-
-    // Motor A Forward
-    digitalWrite(IN1, HIGH);
-    digitalWrite(IN2, LOW);
-
-    // Motor B Forward
-    digitalWrite(IN3, HIGH);
-    digitalWrite(IN4, LOW);
-
-    // currentTime = millis();
-    // }
-}
-
-void turnRight(int degree, int innerRadius, int outterSpeed)
-{
-    // startTime = currentTime = millis();
-
-    leftSpeed = outterSpeed;
-    rightSpeed = (innerRadius * outterSpeed) / (innerRadius + boardWidth);
-
-    // int fixedTime = (TWO_PI * innerRadius * degree * 1000) / (rightSpeed * 360);
-
-    // while (millis() - startTime < fixedTime)
-    // {
-    analogWrite(ENA, leftSpeed);
-    analogWrite(ENB, rightSpeed);
-
-    // Motor A Forward
-    digitalWrite(IN1, HIGH);
-    digitalWrite(IN2, LOW);
-
-    // Motor B Forward
-    digitalWrite(IN3, HIGH);
-    digitalWrite(IN4, LOW);
-
-    // currentTime = millis();
-    // }
+    setMotorDirection(true, true);
 }
